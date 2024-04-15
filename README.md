@@ -1,6 +1,6 @@
 # Backup Android App
 
-This is a flutter app that enables you to backup your android partitions using root and dd.
+This is a flutter app that enables you to back up your android partitions using root and dd.
 Please have adb installed globally on your computer. (`adb` should be in your PATH)
 ## Features
 

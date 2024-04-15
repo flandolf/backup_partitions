@@ -1,3 +1,4 @@
+import 'package:backup_partitions/flash_partitions.dart';
 import 'package:backup_partitions/home_screen.dart';
 import 'package:flutter/material.dart';
 
@@ -14,11 +15,16 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Flutter Demo',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue, brightness:Brightness.dark),
+        colorScheme: ColorScheme.fromSeed(
+            seedColor: Colors.lime, brightness: Brightness.dark),
         useMaterial3: true,
       ),
       debugShowCheckedModeBanner: false,
       home: const HomeScreen(),
+      routes: {
+        '/flash': (context) => const FlashPartitions(),
+        '/home': (context) => const HomeScreen(),
+      },
     );
   }
 }

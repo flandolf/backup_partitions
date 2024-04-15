@@ -2,9 +2,10 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:http/http.dart' as http;
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({Key? key}) : super(key: key);
+  const HomeScreen({super.key});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -16,10 +17,57 @@ class _HomeScreenState extends State<HomeScreen> {
   List<String> partitions = [];
   List<String> selectedPartitions = [];
   String filter = '';
+  String adbVersion = '';
+  bool backupInProgress = false;
+  TextEditingController outputController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    checkPlatformTools(context);
+  }
+
+  Future<void> downloadPlatformTools() async {
+    if (Platform.isWindows) {
+      String url =
+          "https://dl.google.com/android/repository/platform-tools-latest-windows.zip";
+      var response = await http.get(Uri.parse(url));
+      File file = File('platform-tools.zip');
+      file.writeAsBytesSync(response.bodyBytes);
+      // Extract to C:\platform-tools
+      Process.run('powershell', [
+        'Expand-Archive',
+        '-Path',
+        'platform-tools.zip',
+        '-DestinationPath',
+        'C:\\platform-tools'
+      ]);
+      Process.run('setx', ['PATH', 'C:\\platform-tools', '/M']);
+    } else if (Platform.isMacOS) {
+      String url =
+          "https://dl.google.com/android/repository/platform-tools-latest-darwin.zip";
+      var response = await http.get(Uri.parse(url));
+      File file = File('platform-tools.zip');
+      file.writeAsBytesSync(response.bodyBytes);
+      // Extract to /usr/local/bin/platform-tools
+      Process.run('unzip',
+          ['platform-tools.zip', '-d', '/usr/local/bin/platform-tools']);
+    } else if (Platform.isLinux) {
+      String url =
+          "https://dl.google.com/android/repository/platform-tools-latest-linux.zip";
+      var response = await http.get(Uri.parse(url));
+      File file = File('platform-tools.zip');
+      file.writeAsBytesSync(response.bodyBytes);
+      Process.run('unzip',
+          ['platform-tools.zip', '-d', '/usr/local/bin/platform-tools']);
+    }
+  }
 
   Future<void> checkRoot() async {
+    outputController.text += 'Checking root access...\n';
     Process.run('adb', ['shell', 'su', 'echo', 'test']).then((value) {
       if (value.exitCode == 0) {
+        outputController.text += 'Root access granted.\n';
         info["Root"] = 'Yes';
         Process.run('adb', [
           'shell',
@@ -38,13 +86,14 @@ class _HomeScreenState extends State<HomeScreen> {
           });
         });
       } else {
+        outputController.text += 'Root access denied.\n';
         showDialog(
           context: context,
           builder: (context) {
             return AlertDialog(
               title: const Text('Root Required'),
               content: const Text(
-                  'This app requires root access to function properly.'),
+                  'This app requires root access to function properly. \n A device may also not be detected.'),
               actions: [
                 TextButton(
                   onPressed: () {
@@ -60,7 +109,86 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  Future<void> checkDevice() async {
+    Process.run('adb', ['devices']).then((value) {
+      outputController.text += value.stdout.toString();
+      if (value.stdout.toString().contains('unauthorized')) {
+        showDialog(
+          context: context,
+          builder: (context) {
+            return AlertDialog(
+              title: const Text('Unauthorized Device'),
+              content:
+                  const Text('Please authorize your device and try again.'),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
+                  child: const Text('OK'),
+                )
+              ],
+            );
+          },
+        );
+      } else if (value.stdout.toString().split("\n")[1] == "") {
+        showDialog(
+          context: context,
+          builder: (context) {
+            return AlertDialog(
+              title: const Text('No Device Found'),
+              content: const Text('Please connect your device and try again.'),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
+                  child: const Text('OK'),
+                )
+              ],
+            );
+          },
+        );
+      }
+    });
+  }
+
+  Future<void> checkPlatformTools(BuildContext c) async {
+    await Process.run('adb', ['version']).then((value) => {
+          if (value.exitCode == 1)
+            {
+              outputController.text += 'ADB not found.\n',
+              showDialog(
+                context: c,
+                builder: (context) {
+                  return AlertDialog(
+                    title: const Text('ADB Not Found'),
+                    content: const Text(
+                        'Please install ADB and add it to your PATH to continue.'),
+                    actions: [
+                      TextButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                        },
+                        child: const Text('OK'),
+                      )
+                    ],
+                  );
+                },
+              )
+            }
+          else
+            {
+              outputController.text += 'ADB found.\n',
+              setState(() {
+                adbVersion = value.stdout.toString().split('\n')[1];
+              })
+            }
+        });
+  }
+
   Future<void> getInfo() async {
+    outputController.text += 'Getting device info...\n';
     Process.run('adb', ['shell', 'getprop', 'ro.product.model']).then((value) {
       setState(() {
         info["Model"] = value.stdout.toString().trim();
@@ -104,89 +232,56 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  Future<void> backupSelected() async {
-    if (saveFolder.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a backup folder.')),
-      );
-      return;
-    }
-    if (Directory(saveFolder).listSync().isNotEmpty) {
-      showDialog(
-        context: context,
-        builder: (context) {
-          return AlertDialog(
-            title: const Text('Backup Folder Not Empty'),
-            content: const Text(
-                'The selected backup folder is not empty. Please select an empty folder.'),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                },
-                child: const Text('OK'),
-              )
-            ],
-          );
-        },
-      );
-      return;
-    }
+  void backupSelected() async {
+    setState(() {
+      backupInProgress = true;
+    });
+
     for (var partition in selectedPartitions) {
       if (partition == 'userdata') {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Not backing up userdata partition.')),
-          );
+          outputController.text += "Not backing up userdata partition.\n";
           return;
         }
       } else {
-        await Process.run('adb', [
-          'shell',
-          'su -c',
-          'dd',
-          'if=/dev/block/bootdevice/by-name/$partition'.trim(),
-          'of=/sdcard/${partition.trim()}.img'.trim()
-        ]).then((ProcessResult result) {
+        partition = partition.trim();
+        var sourcePath = '/dev/block/bootdevice/by-name/$partition';
+        outputController.text += 'Backing up $partition.img...\n';
+        try {
+          var result = await Process.run('adb', [
+            'shell',
+            'su -c',
+            'dd if=${sourcePath.trim()} of=/sdcard/$partition.img',
+          ]);
+
+          outputController.text += result.stderr.toString();
+
           if (result.exitCode == 0) {
-            Process.run('adb', [
+            await Process.run('adb', [
               'pull',
-              '/storage/emulated/0/${partition.trim()}.img'.trim(),
+              '/sdcard/$partition.img'.trim(),
               saveFolder
-            ]).then((value) => print(value.stdout));
+            ]).then((value) => {
+                  Process.run('adb', [
+                    'shell',
+                    'su -c',
+                    'rm /sdcard/$partition.img',
+                  ])
+                });
 
-            Process.run('adb', [
-              'shell',
-              'su -c',
-              'rm',
-              '/sdcard/${partition.trim()}.img'.trim()
-            ]).then((value) => print(value.stdout));
-
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Backup of $partition.img successful.')),
-            );
+            outputController.text += 'Backup of $partition.img successful.\n';
           } else {
-            showDialog(
-              context: context,
-              builder: (context) {
-                return AlertDialog(
-                  title: const Text('Backup Failed'),
-                  content: Text('Backup of $partition.img failed.'),
-                  actions: [
-                    TextButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                      },
-                      child: const Text('OK'),
-                    )
-                  ],
-                );
-              },
-            );
+            outputController.text += 'Backup of $partition.img failed.\n';
           }
-        });
+        } catch (e) {
+          outputController.text += 'Error: $e\n';
+        }
       }
     }
+
+    setState(() {
+      backupInProgress = false;
+    });
   }
 
   @override
@@ -198,10 +293,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Partition Backup'),
+        title: Text('Partition Backup - ADB $adbVersion'),
         actions: [
           IconButton(
             onPressed: () {
+              checkPlatformTools(context);
+              checkDevice();
               getInfo();
               checkRoot();
             },
@@ -239,9 +336,17 @@ class _HomeScreenState extends State<HomeScreen> {
                   setState(() {
                     selectedPartitions = [];
                   });
-                  setState(() {});
                 },
-                child: const Text('Clear All Partitions'),
+                child: const Text('Clear All Selected Partitions'),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                onPressed: () {
+                  setState(() {
+                    outputController.clear();
+                  });
+                },
+                child: const Text('Clear Output'),
               ),
               const SizedBox(width: 8),
               ElevatedButton(
@@ -249,17 +354,27 @@ class _HomeScreenState extends State<HomeScreen> {
                   setState(() {
                     selectedPartitions = partitions;
                   });
-                  setState(() {});
                 },
                 child: const Text('Select All Partitions'),
               ),
               const SizedBox(width: 8),
               if (selectedPartitions.isNotEmpty)
-                ElevatedButton(
+                FilledButton(
                     onPressed: backupSelected,
-                    child: const Text("Backup Selected"))
+                    child: const Text("Backup Selected")),
+              const SizedBox(width: 8),
+              FilledButton(
+                  onPressed: () {
+                    Navigator.pushNamed(context, '/flash');
+                  },
+                  child: const Text("Flash Partitions Page"))
             ],
           ),
+          if (backupInProgress)
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: LinearProgressIndicator(),
+            ),
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: TextField(
@@ -281,8 +396,14 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Row(
               children: [
                 Expanded(
+                  flex: 2,
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 16),
+                        child: Text('Device Info'),
+                      ),
                       Expanded(
                         child: ListView.builder(
                           itemBuilder: (context, index) {
@@ -303,6 +424,47 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 16),
+                        child: Text('Avaliable Partitions'),
+                      ),
+                      Expanded(
+                        child: ListView.builder(
+                          itemBuilder: (context, index) {
+                            return ListTile(
+                              leading: Checkbox(
+                                value: selectedPartitions
+                                    .contains(filteredPartitions[index]),
+                                onChanged: (value) {
+                                  setState(() {
+                                    if (value == true) {
+                                      selectedPartitions
+                                          .add(filteredPartitions[index]);
+                                    } else {
+                                      selectedPartitions
+                                          .remove(filteredPartitions[index]);
+                                    }
+                                  });
+                                },
+                              ),
+                              title: Text(filteredPartitions[index]),
+                            );
+                          },
+                          itemCount: filteredPartitions.length,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  flex: 2,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 16),
+                        child: Text('Selected Partitions'),
+                      ),
                       Expanded(
                         child: ListView.builder(
                           itemBuilder: (context, index) {
@@ -318,32 +480,27 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 Expanded(
-                  flex: 3,
-                  child: ListView.builder(
-                    itemBuilder: (context, index) {
-                      return ListTile(
-                        leading: Checkbox(
-                          value: selectedPartitions
-                              .contains(filteredPartitions[index]),
-                          onChanged: (value) {
-                            setState(() {
-                              if (value == true) {
-                                selectedPartitions
-                                    .add(filteredPartitions[index]);
-                              } else {
-                                selectedPartitions
-                                    .remove(filteredPartitions[index]);
-                              }
-                            });
-                          },
+                  flex: 2,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: outputController,
+                          readOnly: true,
+                          maxLines: 100,
+                          decoration: const InputDecoration(
+                            hintText: 'Output',
+                            border: OutlineInputBorder(
+                              borderRadius:
+                                  BorderRadius.all(Radius.circular(10.0)),
+                            ),
+                          ),
                         ),
-                        title: Text(filteredPartitions[index]),
-                      );
-                    },
-                    itemCount: filteredPartitions.length,
-                    shrinkWrap: true,
-                    physics:
-                        const AlwaysScrollableScrollPhysics(), // Ensure the ListView is always scrollable
+                      ),
+                      const SizedBox(
+                        width: 8,
+                      )
+                    ],
                   ),
                 ),
               ],
