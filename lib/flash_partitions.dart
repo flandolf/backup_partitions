@@ -44,69 +44,108 @@ class _FlashPartitionsState extends State<FlashPartitions> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Flash Partitions'),
+        title: Row(
+          children: [
+            const Text("Flash partitions"),
+            Text(" | ${backupFolder?.path ?? "No folder selected"} | ", style: const TextStyle(fontSize: 18),),
+            Text("Device: $device", style: const TextStyle(fontSize: 18),),
+
+          ],
+        )
       ),
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Device: $device'),
-                    const SizedBox(height: 4),
-                    Text(
-                        'Backup Folder: ${backupFolder?.path ?? "Not selected"}'),
-                  ],
-                ),
-                Row(
-                  children: [
-                    ElevatedButton(
-                      onPressed: () {
-                        Process.run('fastboot', ['devices']).then((result) {
-                          setState(() {
-                            device = result.stdout.toString();
-                          });
-                        });
-                      },
-                      child: const Text('Refresh'),
-                    ),
-                    const SizedBox(width: 16),
-                    ElevatedButton(
-                      onPressed: () {
-                        outputController.text = "";
-                      },
-                      child: const Text('Clear Output'),
-                    ),
-                    const SizedBox(width: 16),
-                    ElevatedButton(
-                      onPressed: () async {
-                        String? directoryPath =
-                            await FilePicker.platform.getDirectoryPath();
-                        if (directoryPath != null) {
-                          setState(() {
-                            backupFolder = Directory(directoryPath);
-                          });
-                          retrievePartitionNames();
-                        }
-                      },
-                      child: const Text('Select Backup Folder'),
-                    ),
-                    const SizedBox(width: 8),
-                    if (backupFolder != null)
-                      ElevatedButton(
-                        onPressed: flashAllPartitions,
-                        child: const Text("Flash All"),
-                      )
-                  ],
-                ),
-              ],
-            ),
+          const SizedBox(height: 8,),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              FilledButton(
+                onPressed: () {
+                  Process.run('fastboot', ['-w']).then((result) {
+                    setState(() {
+                      device = result.stdout.toString();
+                    });
+                  });
+                },
+                child: const Text('Wipe userdata'),
+              ),
+              const SizedBox(width: 16),
+              FilledButton(
+                onPressed: () {
+                  Process.run('fastboot', ['flashing', 'lock'])
+                      .then((result) {
+                    setState(() {
+                      device = result.stdout.toString();
+                    });
+                  });
+                },
+                child: const Text('Lock Bootloader'),
+              ),
+              const SizedBox(width: 16),
+              FilledButton(
+                onPressed: () {
+                  Process.run('fastboot', ['flashing', 'unlock'])
+                      .then((result) {
+                    setState(() {
+                      device = result.stdout.toString();
+                    });
+                  });
+                },
+                child: const Text('Unlock Bootloader'),
+              ),
+              const SizedBox(width: 16),
+              FilledButton(
+                onPressed: () {
+                  Process.run('fastboot', ['reboot', 'fastboot'])
+                      .then((result) {
+                    setState(() {
+                      device = result.stdout.toString();
+                    });
+                  });
+                },
+                child: const Text('Reboot to fastbootd'),
+              ),
+              const SizedBox(width: 16),
+              ElevatedButton(
+                onPressed: () {
+                  Process.run('fastboot', ['devices']).then((result) {
+                    setState(() {
+                      device = result.stdout.toString();
+                    });
+                  });
+                },
+                child: const Text('Refresh'),
+              ),
+              const SizedBox(width: 16),
+              ElevatedButton(
+                onPressed: () {
+                  outputController.text = "";
+                },
+                child: const Text('Clear Output'),
+              ),
+              const SizedBox(width: 16),
+              ElevatedButton(
+                onPressed: () async {
+                  String? directoryPath =
+                  await FilePicker.platform.getDirectoryPath();
+                  if (directoryPath != null) {
+                    setState(() {
+                      backupFolder = Directory(directoryPath);
+                    });
+                    retrievePartitionNames();
+                  }
+                },
+                child: const Text('Select Backup Folder'),
+              ),
+              const SizedBox(width: 8),
+              if (backupFolder != null)
+                ElevatedButton(
+                  onPressed: flashAllPartitions,
+                  child: const Text("Flash All"),
+                )
+            ],
           ),
+          const SizedBox(height: 8,),
           Expanded(
             child: Row(
               children: [
@@ -119,7 +158,7 @@ class _FlashPartitionsState extends State<FlashPartitions> {
                         title: Text(partitionNames[index]),
                         subtitle: Text(
                             'Flashing to ${partitionNames[index].split('\\').last} partition'),
-                        trailing: ElevatedButton(
+                        trailing: FilledButton(
                           onPressed: () {
                             outputController.text +=
                                 "Flashing ${partitionNames[index]}\n";
@@ -143,19 +182,25 @@ class _FlashPartitionsState extends State<FlashPartitions> {
                 ),
                 const SizedBox(width: 16),
                 Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: TextField(
-                      controller: outputController,
-                      readOnly: true,
-                      maxLines: 100,
-                      decoration: const InputDecoration(
-                        labelText: 'Output',
-                        border: OutlineInputBorder(),
-                      ),
+                    child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "Output",
+                      style: TextStyle(fontSize: 24),
                     ),
-                  ),
-                ),
+                    Expanded(
+                      child: TextField(
+                        controller: outputController,
+                        readOnly: true,
+                        maxLines: 100,
+                        decoration: const InputDecoration(
+                          border: InputBorder.none,
+                        ),
+                      ),
+                    )
+                  ],
+                )),
               ],
             ),
           ),

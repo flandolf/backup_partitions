@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -236,6 +237,24 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void backupSelected() async {
+    if (Directory(saveFolder).existsSync() == false) {
+      return showDialog(
+          context: context,
+          builder: (context) {
+            return AlertDialog(
+              title: const Text("Backup Folder Required"),
+              content: const Text("Please select a folder to back up to."),
+              actions: [
+                TextButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                    },
+                    child: const Text("Ok"))
+              ],
+            );
+          });
+    }
+
     setState(() {
       backupInProgress = true;
     });
@@ -296,7 +315,41 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Partition Backup - ADB $adbVersion'),
+        title: Text(
+            'Partition Backup - ADB $adbVersion - ${saveFolder == "" ? "No save folder selected" : saveFolder}'),
+        actions: [
+          IconButton(
+              onPressed: () {
+                showDialog(
+                    context: context,
+                    builder: (context) {
+                      return AlertDialog(
+                        title: const Text("About this app"),
+                        content: const Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text("(c) 2024 Andrew Wang."),
+                          ],
+                        ),
+                        actions: [
+                          TextButton(
+                              onPressed: () {
+                                Navigator.pop(context);
+                              },
+                              child: const Text("Ok")),
+                          TextButton(
+                              onPressed: () {
+                                launchUrl(
+                                    Uri.parse("https://github.com/flandolf"));
+                              },
+                              child: const Text("Github"))
+                        ],
+                      );
+                    });
+              },
+              icon: const Icon(Icons.info))
+        ],
       ),
       body: Column(
         children: [
@@ -508,6 +561,9 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           ),
+          const SizedBox(
+            height: 16,
+          )
         ],
       ),
     );
