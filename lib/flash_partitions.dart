@@ -14,6 +14,7 @@ class _FlashPartitionsState extends State<FlashPartitions> {
   String device = "Unknown";
   Directory? backupFolder;
   List<String> partitionNames = [];
+  TextEditingController outputController = TextEditingController();
 
   Future<void> retrievePartitionNames() async {
     List<FileSystemEntity> files = backupFolder?.listSync() ?? [];
@@ -25,6 +26,18 @@ class _FlashPartitionsState extends State<FlashPartitions> {
       partitionNames =
           imgFiles.map((e) => e.split('/').last.split('.').first).toList();
     });
+  }
+
+  Future<void> flashAllPartitions() async {
+    for (String partitionName in partitionNames) {
+      await Process.run('fastboot', [
+        'flash',
+        partitionName,
+        '${backupFolder?.path}\\$partitionName.img'
+      ]).then((result) {
+        outputController.text += '${result.stdout}\n';
+      });
+    }
   }
 
   @override
@@ -63,53 +76,88 @@ class _FlashPartitionsState extends State<FlashPartitions> {
                       child: const Text('Refresh'),
                     ),
                     const SizedBox(width: 16),
-                    FilledButton(
+                    ElevatedButton(
+                      onPressed: () {
+                        outputController.text = "";
+                      },
+                      child: const Text('Clear Output'),
+                    ),
+                    const SizedBox(width: 16),
+                    ElevatedButton(
                       onPressed: () async {
-                        String directoryPath = await FilePicker.platform
-                            .getDirectoryPath() as String;
-                        setState(() {
-                          backupFolder = Directory(directoryPath);
-                        });
-                        retrievePartitionNames();
+                        String? directoryPath =
+                            await FilePicker.platform.getDirectoryPath();
+                        if (directoryPath != null) {
+                          setState(() {
+                            backupFolder = Directory(directoryPath);
+                          });
+                          retrievePartitionNames();
+                        }
                       },
                       child: const Text('Select Backup Folder'),
                     ),
                     const SizedBox(width: 8),
                     if (backupFolder != null)
-                      FilledButton(
-                          onPressed: () {
-                            //TODO: Implement flash all partitions
-                          },
-                          child: const Text("Flash All"))
+                      ElevatedButton(
+                        onPressed: flashAllPartitions,
+                        child: const Text("Flash All"),
+                      )
                   ],
                 ),
               ],
             ),
           ),
-          ListView.builder(
-            shrinkWrap: true,
-            itemCount: partitionNames.length,
-            itemBuilder: (context, index) {
-              return ListTile(
-                title: Text(partitionNames[index]),
-                subtitle: Text(
-                    'Flashing to ${partitionNames[index].split('\\').last} partition'),
-                trailing: ElevatedButton(
-                  onPressed: () {
-                    Process.run('fastboot', [
-                      'flash',
-                      partitionNames[index],
-                      '${backupFolder?.path}\\${partitionNames[index]}.img'
-                    ]).then((result) {
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                        content: Text(result.stdout.toString()),
-                      ));
-                    });
-                  },
-                  child: const Text('Flash'),
+          Expanded(
+            child: Row(
+              children: [
+                Expanded(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: partitionNames.length,
+                    itemBuilder: (context, index) {
+                      return ListTile(
+                        title: Text(partitionNames[index]),
+                        subtitle: Text(
+                            'Flashing to ${partitionNames[index].split('\\').last} partition'),
+                        trailing: ElevatedButton(
+                          onPressed: () {
+                            outputController.text +=
+                                "Flashing ${partitionNames[index]}\n";
+                            Process.run('fastboot', [
+                              'flash',
+                              partitionNames[index],
+                              '${backupFolder?.path}\\${partitionNames[index]}.img'
+                            ]).then((result) {
+                              outputController.text = result.stdout.toString();
+                              ScaffoldMessenger.of(context)
+                                  .showSnackBar(SnackBar(
+                                content: Text(result.stdout.toString()),
+                              ));
+                            });
+                          },
+                          child: const Text('Flash'),
+                        ),
+                      );
+                    },
+                  ),
                 ),
-              );
-            },
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: TextField(
+                      controller: outputController,
+                      readOnly: true,
+                      maxLines: 100,
+                      decoration: const InputDecoration(
+                        labelText: 'Output',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),

@@ -25,6 +25,9 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     checkPlatformTools(context);
+    checkDevice();
+    getInfo();
+    checkRoot();
   }
 
   Future<void> downloadPlatformTools() async {
@@ -294,17 +297,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text('Partition Backup - ADB $adbVersion'),
-        actions: [
-          IconButton(
-            onPressed: () {
-              checkPlatformTools(context);
-              checkDevice();
-              getInfo();
-              checkRoot();
-            },
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
       ),
       body: Column(
         children: [
@@ -313,6 +305,16 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           Row(
             children: [
+              const SizedBox(width: 8),
+              FilledButton(
+                onPressed: () {
+                  checkPlatformTools(context);
+                  checkDevice();
+                  getInfo();
+                  checkRoot();
+                },
+                child: const Text("Refresh"),
+              ),
               const SizedBox(width: 8),
               ElevatedButton(
                 onPressed: () async {
