@@ -354,9 +354,10 @@ class _HomeScreenState extends State<HomeScreen> {
       body: Column(
         children: [
           const SizedBox(
-            height: 16,
+            height: 8,
           ),
           Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const SizedBox(width: 8),
               FilledButton(
@@ -369,7 +370,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: const Text("Refresh"),
               ),
               const SizedBox(width: 8),
-              ElevatedButton(
+              FilledButton(
                 onPressed: () async {
                   String? selectedDirectory =
                       await FilePicker.platform.getDirectoryPath();
@@ -386,7 +387,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: const Text('Browse Backup Folder'),
               ),
               const SizedBox(width: 8),
-              ElevatedButton(
+              FilledButton(
                 onPressed: () {
                   setState(() {
                     selectedPartitions = [];
@@ -395,16 +396,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: const Text('Clear All Selected Partitions'),
               ),
               const SizedBox(width: 8),
-              ElevatedButton(
-                onPressed: () {
-                  setState(() {
-                    outputController.clear();
-                  });
-                },
-                child: const Text('Clear Output'),
-              ),
-              const SizedBox(width: 8),
-              ElevatedButton(
+              FilledButton(
                 onPressed: () {
                   setState(() {
                     selectedPartitions = partitions;
@@ -422,13 +414,26 @@ class _HomeScreenState extends State<HomeScreen> {
                   onPressed: () {
                     Navigator.pushNamed(context, '/flash');
                   },
-                  child: const Text("Flash Partitions Page"))
+                  child: const Text("Flash Partitions Page")),
+              const SizedBox(width: 8),
+              ElevatedButton(
+                onPressed: () {
+                  setState(() {
+                    outputController.clear();
+                  });
+                },
+                child: const Text('Clear Output'),
+              ),
             ],
           ),
           if (backupInProgress)
             const Padding(
-              padding: EdgeInsets.all(16),
+              padding: EdgeInsets.all(8),
               child: LinearProgressIndicator(),
+            )
+          else
+            const SizedBox(
+              height: 8,
             ),
           Padding(
             padding: const EdgeInsets.all(8.0),
